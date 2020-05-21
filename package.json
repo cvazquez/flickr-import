@@ -17,5 +17,9 @@
   "dependencies": {
     "mysql": "^2.18.1",
     "nodemon": "^2.0.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cvazquez/flickr-import"
   }
 }
