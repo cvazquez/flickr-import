@@ -1,0 +1,21 @@
+{
+  "name": "flickr",
+  "version": "1.0.0",
+  "description": "Script to connect to Flickr API and save collections to a DB",
+  "main": "flickr.js",
+  "scripts": {
+	"test": "echo \"Error: no test specified\" && exit 1",
+	"start": "nodemon ./flikr.js "
+  },
+  "keywords": [
+    "flikr",
+    "node",
+    "mysql"
+  ],
+  "author": "Carlos Vazquez",
+  "license": "ISC",
+  "dependencies": {
+    "mysql": "^2.18.1",
+    "nodemon": "^2.0.4"
+  }
+}
