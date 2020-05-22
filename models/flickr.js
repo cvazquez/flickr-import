@@ -42,4 +42,71 @@ exports.flickrModel = class flickrModel {
 			})
 		})
 	}
+
+	saveAlbum(id, flickrCollectionId, title, description) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	INSERT INTO flickrsets
+							SET id 					= ?,
+								flickrCollectionId	= ?,
+								title				= ?,
+								description			= ?,
+								createdAt			= now()`,
+							[id, flickrCollectionId, title, description],
+							(err, rows) => {
+								if(err) reject(err);
+
+								resolve(rows);
+							})
+		}).catch((err) => {
+			let reason = err;
+
+			if(err.errno === 1062) {
+				reason = "Photo Albums already exist in DB";
+			}
+
+			return({failed: true,
+					reason: reason});
+		});
+	}
+
+	savePhotos(values) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	INSERT INTO flickrsetphotos
+							(id, flickrSetId, orderId, title, squareURL, squareWidth, squareHeight, mediumURL, mediumWidth, mediumHeight, largeURL, largeWidth, largeHeight, takenAt)
+							VALUES ?;`,
+							[values],
+					(err, rows) => {
+						if(err) reject(err);
+
+						resolve(rows)
+					})
+		}).catch((err) => {
+			let reason = err;
+
+			if(err.errno === 1062) {
+				reason = "Photos already exist in DB";
+			}
+
+			return({failed: true,
+					reason: reason});
+		});
+	}
+
+	savePhotoURLS() {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	INSERT IGNORE INTO flickrsetphotourls (flickrSetPhotoId, name, isActive, createdAt)
+							SELECT id, CreateTitleURL(title), 1, now()
+							FROM flickrsetphotos
+							WHERE deletedAt IS NULL
+							ORDER BY id;`,
+				(err, rows) => {
+					if(err) reject(err);
+
+					resolve(rows);
+				})
+		}).catch((err) => {
+			return({failed: true,
+					reason: err});
+		});
+	}
 }
