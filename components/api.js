@@ -36,7 +36,7 @@ exports.api = class api {
 		return api;
 	}
 
-	getCollections(collectionId) {
+	getCollectionAlbums(collectionId) {
 		return new Promise((resolve, reject) => {
 			https.get(`https://api.flickr.com/services/rest/?method=flickr.collections.getTree&api_key=${this.api.key}&collection_id=${collectionId}&user_id=${this.api.userId}&format=json&nojsoncallback=1`,
 				res => {

@@ -8,14 +8,13 @@ let api;
 async function processCollections(api) {
 	const	collections = await flickrModel.getCollections();
 
-	 collections.map(async (collection, index) => {
+	return Promise.all(collections.map(async collection => {
 		process.stdout.write(`\n************* COLLECTION ID: ${collection.id} ************\n`);
 
-		let collectionAPI = await api.getCollections(collection.id);
+		let collectionAlbums = await api.getCollectionAlbums(collection.id);
 
-		processAlbums(collectionAPI.set, collection.id);
-
-	});
+		await processAlbums(collectionAlbums.set, collection.id);
+	}));
 }
 
 // Check if Flickr Albums are in DB and vice versa
@@ -26,7 +25,7 @@ async function processAlbums(albumbsFromFlikr, collectionId) {
 		album;
 
 	// Turn albums from Flicker API call into an array and object of Flickr albums
-	[albumIdsFromFlickr, albumbsFromFlikrById] = await getAlbumnsByIdObjects(albumbsFromFlikr);
+	[albumIdsFromFlickr, albumbsFromFlikrById] = getAlbumnByIdObjects(albumbsFromFlikr);
 
 	// Usint the Flickr API album ids, search for the same albumbs in the DB and get an object of DB albums by album id
 	albumbsFromDBById = await getDatabaseAlbumsById(albumIdsFromFlickr, albumbsFromFlikrById);
@@ -36,14 +35,14 @@ async function processAlbums(albumbsFromFlikr, collectionId) {
 
 	for(let albumId in albumbsFromDBById) {
 		album = await api.getAlbumPhotos(albumId);
-		processPhotos(album.set, albumId)
+		await processPhotos(album.set, albumId)
 	}
 
-//	return await status;
+	return true;
 }
 
 // Return an array and object by id to access Flick album data
-function getAlbumnsByIdObjects(albumbsFromFlikr) {
+function getAlbumnByIdObjects(albumbsFromFlikr) {
 	let	albumIdsFromFlickr = [],
 		albumbsFromFlikrById = {};
 
@@ -237,15 +236,26 @@ async function processPhotos(flickrPhotos, albumId) {
 }
 
 let myPromise = new Promise(async (resolve, reject) => {
+	let processedCollections;
+
 	api = await new apiClass(flickrModel)
 
-	await processCollections(api);
+	processedCollections = await processCollections(api);
 
-	resolve("success")
-})
+	resolve("Finished Processing Collections!\n")
+});
 
 myPromise.then((message) => {
-	process.stdout.write(message)
-})
+	process.stdout.write(message);
+	process.stdout.write("Closing DB connection...");
 
-//flikrDS.end();
+	flikrDS.end(err => {
+		if(err) {
+			console.log("***********Error Closing DB connection*********");
+			console.error(err);
+			return;
+		}
+		process.stdout.write("closed!\n");
+	});
+
+});
