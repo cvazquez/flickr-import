@@ -18,9 +18,9 @@ exports.flickrModel = class flickrModel {
 
 	getAlbumPhotos(albumId) {
 		return new Promise((resolve, reject) => {
-			this.ds.query(`	SELECT id, title
+			this.ds.query(`	SELECT id, title, description
 							FROM flickrsetphotos
-							WHERE id = ?`, [albumId],
+							WHERE flickrSetId = ?`, [albumId],
 				(err, rows) => {
 					if(err) reject(err);
 
@@ -88,7 +88,7 @@ exports.flickrModel = class flickrModel {
 	savePhotos(values) {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	INSERT INTO flickrsetphotos
-							(id, flickrSetId, orderId, title, squareURL, squareWidth, squareHeight, mediumURL, mediumWidth, mediumHeight, largeURL, largeWidth, largeHeight, takenAt)
+							(id, flickrSetId, orderId, title, description, squareURL, squareWidth, squareHeight, mediumURL, mediumWidth, mediumHeight, largeURL, largeWidth, largeHeight, takenAt)
 							VALUES ?;`,
 							[values],
 					(err, rows) => {
@@ -127,7 +127,7 @@ exports.flickrModel = class flickrModel {
 		});
 	}
 
-	updateAlbum(albumId,
+	updateAlbum(id,
 				title,
 				description) {
 
@@ -137,7 +137,7 @@ exports.flickrModel = class flickrModel {
 								description	= ?,
 								updatedAt = CASE WHEN (? <> title OR ? <> description) THEN now() ELSE updatedAt END
 							WHERE id = ?;`,
-							[title, description, title, description, albumId],
+							[title, description, title, description, id],
 				(err, rows) => {
 					if(err) reject(err);
 
@@ -148,5 +148,20 @@ exports.flickrModel = class flickrModel {
 			});
 	}
 
-	//updatePhoto(photoId,)
+	updatePhoto(id, title, description) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	UPDATE flickrsetphotos
+							SET	title		= ?,
+								description	= ?,
+								updatedAt	= now()
+							WHERE id = ?`, [title, description, id],
+				(err, rows) => {
+					if(err) reject(err);
+
+					resolve(rows);
+				})
+		}).catch(err => {
+			console.log(`updatePhoto(${photoId}, ${title}, ${description})`, err);
+		})
+	}
 }
