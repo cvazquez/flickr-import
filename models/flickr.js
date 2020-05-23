@@ -16,6 +16,22 @@ exports.flickrModel = class flickrModel {
 		)})
 	}
 
+	getAlbumPhotos(albumId) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	SELECT id, title
+							FROM flickrsetphotos
+							WHERE id = ?`, [albumId],
+				(err, rows) => {
+					if(err) reject(err);
+
+					resolve(rows);
+				})
+		}).catch(err => {
+			return({failed: true,
+					reason: err});
+		})
+	}
+
 	getCollections() {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`
@@ -88,7 +104,8 @@ exports.flickrModel = class flickrModel {
 			}
 
 			return({failed: true,
-					reason: reason});
+					reason: reason,
+					errno: err.errno});
 		});
 	}
 
@@ -109,4 +126,27 @@ exports.flickrModel = class flickrModel {
 					reason: err});
 		});
 	}
+
+	updateAlbum(albumId,
+				title,
+				description) {
+
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	UPDATE flickrsets
+							SET title = ?,
+								description	= ?,
+								updatedAt = CASE WHEN (? <> title OR ? <> description) THEN now() ELSE updatedAt END
+							WHERE id = ?;`,
+							[title, description, title, description, albumId],
+				(err, rows) => {
+					if(err) reject(err);
+
+					resolve(rows);
+				})
+			}).catch((err) => {
+				console.log(`updateAlbum(${albumId} error : )`, err);
+			});
+	}
+
+	//updatePhoto(photoId,)
 }

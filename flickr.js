@@ -27,61 +27,88 @@ async function setAPICreds() {
 	});
 }
 
-setAPICreds();
-
-
-let processCollections = async (api) => {
+async function processCollections(api) {
 	const	collections = await flickrModel.getCollections();
 
-	collections.map((collection, index) => {
-
-		https.get(`https://api.flickr.com/services/rest/?method=flickr.collections.getTree&api_key=${api.key}&collection_id=${collection.id}&user_id=${api.userId}&format=json`,
-				(res) => {
-					res.setEncoding("utf8");
-
-					res.on("data", data => {
-						let albums,
-							err;
-
-						function jsonFlickrApi(rsp){
-							if(!rsp.stat || rsp.stat !== "ok" ||
-								!rsp.collections || !rsp.collections.collection ||
-								!rsp.collections.collection[0] || !rsp.collections.collection[0].set)
-								return false;
-
-							return rsp.collections.collection[0].set;
-						}
-
-						// The api response returns a function called jsonFlickrApi with the json as an argument
-						albums = eval(data);
-
-						if(albums) {
-							processAlbums(albums, collection.id);
-						} else {
-							console.log("Error accessing Collections")
-							flikrDS.end();
-						}
-
-						console.log(index);
-					});
-		}).on('error', (e) => {
-			console.log("error")
-			console.error(e);
-		});
+	await collections.map(async (collection, index) => {
+		console.log(`************* COLLECTION ID: ${collection.id} ************`);
+		var status = await getAPICollections(collection.id);
+		console.log(status);
+		console.log("collections index = ", index)
 	});
-};
+}
 
-(async ()=> {
+function getAPICollections(collectionId) {
+	return new Promise((resolve, reject) => {
+		https.get(`https://api.flickr.com/services/rest/?method=flickr.collections.getTree&api_key=${api.key}&collection_id=${collectionId}&user_id=${api.userId}&format=json&nojsoncallback=1`,
+			res => {
+				var body = "";
 
-	let process = await processCollections(api);
+				res.on("data", data => {
+					body += data;
+				});
 
-	if(process) {
-		console.log("close db connection")
-		flikrDS.end();
+				res.on("end", () => {
+					if(res.statusCode === 200) {
+						try {
+							let jsonResponse = JSON.parse(body);
+
+							if(!jsonResponse.stat || jsonResponse.stat !== "ok" ||
+								!jsonResponse.collections || !jsonResponse.collections.collection ||
+								!jsonResponse.collections.collection[0] || !jsonResponse.collections.collection[0].set)
+								throw new Error("Error parsing JSON");
+
+							console.log(`************* COLLECTION TITLE: ${jsonResponse.collections.collection[0].title} ************\n`);
+							resolve({
+										process : processAlbums(jsonResponse.collections.collection[0].set, collectionId),
+										success	: true});
+						} catch(e) {
+
+							console.log(`Error parsing JSON from getAPICollections(${collectionId})`);
+							console.log(e)
+							reject(e)
+						}
+					} else {
+						throw new Error(`Bad response code in getAPICollections(${collectionId})`);
+					}
+				});
+		}).on('error', (e) => {
+			console.log(`getAPICollections(${collectionId}) API response error`);
+			console.error(e);
+
+			reject(e);
+		});
+	}).catch(err => {
+		console.log(`getAPICollections(${collectionId}) Promise Error`);
+		console.log(err);
+	});
+}
+
+// Check if Flickr Albums are in DB and vice versa
+async function processAlbums(albumbsFromFlikr, collectionId) {
+	let	albumIdsFromFlickr = [],
+		albumbsFromFlikrById = {},
+		albumbsFromDBById = {},
+		status;
+
+	// Turn albums from Flicker API call into an array and object of Flickr albums
+	[albumIdsFromFlickr, albumbsFromFlikrById] = await getAlbumnsByIdObjects(albumbsFromFlikr);
+
+	// Usint the Flickr API album ids, search for the same albumbs in the DB and get an object of DB albums by album id
+	albumbsFromDBById = await getDatabaseAlbumsById(albumIdsFromFlickr, albumbsFromFlikrById);
+
+	// Send the albums found at Flick and in DB, and create missing ones and update existing
+	await CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId);
+
+	for(let albumId in albumbsFromDBById) {
+		status = await getAlbumPhotos(albumId);
 	}
-})();
 
-function createAlumIdsFromFlickr(albumbsFromFlikr) {
+	return await status;
+}
+
+// Return an array and object by id to access Flick album data
+function getAlbumnsByIdObjects(albumbsFromFlikr) {
 	let	albumIdsFromFlickr = [],
 		albumbsFromFlikrById = {};
 
@@ -102,25 +129,30 @@ function createAlumIdsFromFlickr(albumbsFromFlikr) {
 	return [albumIdsFromFlickr, albumbsFromFlikrById];
 }
 
-async function getDatabaseAlbums(albumIdsFromFlickr, albumbsFromFlikrById) {
-	// Get albums stored in the DB
+// Retrieve the albums from the DB, based on the album ids retrieved from Flickr
+async function getDatabaseAlbumsById(albumIdsFromFlickr, albumbsFromFlikrById) {
 	let albumbsFromDBById = {};
-	const albumsInDB = await flickrModel.getAlbumInfo(albumIdsFromFlickr);
+	const albumsInDB = await flickrModel.getAlbumInfo(albumIdsFromFlickr); // Pass Flickr album ids to db to find existing albums
 
 	//Loop through albums in local database and find any that don't exist from flickr api
 	console.log("********** DB Albums **********")
 	albumsInDB.map(album => {
+		let atFlickr = true; // assume album is at flickr, unless found not to be below
+
 		if(!albumbsFromFlikrById.hasOwnProperty(album.id)) {
 			// Album in Database doesn't exist at flickr
-			console.log("Missing album at Flickr that is in the DB : ");
+			console.log("WARNING: Missing album at Flickr that is in the DB (probably need to delete from or fix database) : ");
 			console.log(album);
+			atFlickr = false;
 		}
 
 		console.log(album.title + "\n" + (album.description.length ? "* " + album.description + "\n" : ""));
 
+		// Create an object of albums in DB
 		albumbsFromDBById[album.id] = {
 			title		: album.title,
-			description	: album.description
+			description	: album.description,
+			atFlickr
 		}
 	});
 	console.log("********** /DB Albums **********\n\n")
@@ -128,89 +160,104 @@ async function getDatabaseAlbums(albumIdsFromFlickr, albumbsFromFlikrById) {
 	return albumbsFromDBById;
 }
 
-async function setMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId) {
-	let createdAlbum;
+// Check for albums retrieved from Flikr that are not stored in the DB and create or update existing ones
+async function CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId) {
+	let createdAlbumStatus;
 
-	// Check for albums retrieved from Flikr that are not stored in the DB and create
 	console.log("********** Missing DB Album Check and Insert **********")
 	for(let albumFromFlickrId in albumbsFromFlikrById) {
 		if(!albumbsFromDBById.hasOwnProperty(albumFromFlickrId)) {
+			// Flickr Album doesn't exist in DB, so insert it
 
 			console.log("Album from Flickr is Missing from the DB. Creating....");
 			console.log(albumFromFlickrId)
 			console.log(albumbsFromFlikrById[albumFromFlickrId]);
 
-			createdAlbum = await flickrModel.saveAlbum(
+			// TODO: perform a multi-insert
+			createdAlbumStatus = await flickrModel.saveAlbum(
 				albumFromFlickrId,
 				collectionId,
 				albumbsFromFlikrById[albumFromFlickrId].title,
 				albumbsFromFlikrById[albumFromFlickrId].description);
 
 
-			if(!createdAlbum.failed) {
-				process.stdout.write(createdAlbum)
+			if(!createdAlbumStatus.failed) {
+				process.stdout.write(createdAlbumStatus)
 				process.stdout.write(`\nAlbum ***${albumbsFromFlikrById[albumFromFlickrId].title}*** `);
-				if(!createdAlbum.affectedRows) {
+				if(!createdAlbumStatus.affectedRows) {
 					process.stdout.write("NOT ");
 				}
 				process.stdout.write("inserted into DB\n\n");
 			} else {
 				console.log(`Failed Creating Album ***${albumbsFromFlikrById[albumFromFlickrId].title}***`);
-				console.log(createdAlbum.reason);
+				console.log(createdAlbumStatus.reason);
 			}
+		} else {
+			// Flickr Album exists in the DB, so update it
+			console.log(`Updating existing Album: (%s) %s `,albumFromFlickrId, albumbsFromFlikrById[albumFromFlickrId].title)
+			updateAlbumStatus = await flickrModel.updateAlbum(
+					albumFromFlickrId,
+					albumbsFromFlikrById[albumFromFlickrId].title,
+					albumbsFromFlikrById[albumFromFlickrId].description
+			);
+			console.log("Row Found: " + (updateAlbumStatus.affectedRows ? true : false));
+			console.log("Row Updated: " + (updateAlbumStatus.changedRows ? true : false) + "\n");
 		}
 	}
 	console.log("********** /Missing DB Album Check and Insert **********")
+
+	return;
 }
 
 async function getAlbumPhotos(albumId) {
-	https.get(`https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=${api.key}&photoset_id=${albumId}&extras=date_taken,url_sq,url_s,url_m,url_o,geo,tags&privacy_filter=1&user_id=${api.userId}&per_page=5&format=json`,
-			(res) => {
-				res.setEncoding("utf8");
 
-				res.on("data", data => {
-					let photos;
+	console.log(`********** API get Album photos for ${albumId} **********`);
 
-					function jsonFlickrApi(rsp){
-						if(!rsp.stat || rsp.stat !== "ok" || !rsp.photoset) {
-							return false;
-							console.log("rsp error")
+	return new Promise((resolve, reject) => {
+		https.get(`https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=${api.key}&photoset_id=${albumId}&extras=date_taken,url_sq,url_s,url_m,url_o,geo,tags&privacy_filter=1&user_id=${api.userId}&per_page=100&format=json&nojsoncallback=1`,
+				(res) => {
+					var body = '';
+
+					res.on('data', function(chunk){
+						body += chunk;
+					});
+
+					res.on("end", () => {
+						if(res.statusCode === 200) {
+							try {
+								const jsonResponse = JSON.parse(body);
+
+								if(!jsonResponse.stat || jsonResponse.stat !== "ok" || !jsonResponse.photoset) {
+									throw new Error("jsonResponse bad");
+								}
+
+								resolve({
+									process : processPhotos(jsonResponse.photoset, albumId),
+									success	: true});
+							} catch(e) {
+								console.log(`Error parsing JSON from getPhotoAlbums(${albumId})`);
+								console.log(e)
+							}
+						} else {
+							console.log(`getPhotoAlbums(${albumId}) bad status code (${res.statusCode})`);
 						}
+					});
+				}).on('error', (e) => {
+					console.log(`getPhotoAlbums(${albumId}) API response error`);
+					console.error(e);
 
-						return rsp.photoset;
-					}
-
-					// The api response returns a function called jsonFlickrApi with the json as an argument
-					photos = eval(data);
-
-					if(photos) processPhotos(photos, albumId);
+					reject(e);
 				});
-			}).on('error', (e) => {
-				console.error(e);
-			});
-}
-
-// Check if Flickr Albums are in DB and vice versa
-async function processAlbums(albumbsFromFlikr, collectionId) {
-	let	albumIdsFromFlickr = [],
-		albumbsFromFlikrById = {},
-		albumbsFromDBById = {};
-
-	[albumIdsFromFlickr, albumbsFromFlikrById] = createAlumIdsFromFlickr(albumbsFromFlikr);
-
-	albumbsFromDBById = await getDatabaseAlbums(albumIdsFromFlickr, albumbsFromFlikrById);
-
-	await setMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId);
-
-	for(let albumId in albumbsFromDBById) {
-		await getAlbumPhotos(albumId);
-	}
-	//await getAlbumPhotos();
+	}).catch(err => {
+		console.log(`getPhotoAlbums(${albumId}) Promise Error`);
+		console.log(err);
+	});
 }
 
 async function processPhotos(photos, albumId) {
-	let photoValues = [],
-		result;
+	let photoValues = [], // hold an array of sql insert values
+		result,
+		albumPhotos;
 
 	// Create an array of insert values for a multi-insert sql operatiom
 	photos.photo.map((photo, index) => {
@@ -232,6 +279,20 @@ async function processPhotos(photos, albumId) {
 
 		if(result.failed) {
 			console.log(result.reason)
+
+			if(result.errno === 1062) {
+				// Photo already exists. If different title then update
+
+				// Retrieve DB photos and match with Flickr photo ids and title for updating
+				photos.photo.map(async photo => {
+					albumPhotos = await flickrModel.getAlbumPhotos(photo.id);
+					console.log(albumPhotos)
+					//assign to an Object to compare titles
+
+				});
+
+
+			}
 		} else {
 			console.log(`SUCCESS: Inserted ${result.affectedRows} photos`);
 
@@ -246,4 +307,20 @@ async function processPhotos(photos, albumId) {
 	} else {
 		console.log("No albums found to insert");
 	}
+
+	return true;
 }
+
+setAPICreds();
+//processCollections(api);
+
+let myPromise = new Promise((resolve, reject) => {
+	processCollections(api);
+	resolve("success")
+})
+
+myPromise.then((message) => {
+	console.log(message)
+})
+
+//flikrDS.end();
