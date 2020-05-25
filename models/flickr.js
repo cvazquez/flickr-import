@@ -85,6 +85,21 @@ exports.flickrModel = class flickrModel {
 		});
 	}
 
+	saveOAuth(userNSid, fullName, userName, oauthToken, oauthTokenSecret) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	INSERT INTO flickroauth (userNSid, fullName, userName, oauthToken, oauthTokenSecret)
+							VALUES (?, ?, ?, ?, ?)`, [userNSid, fullName, userName, oauthToken, oauthTokenSecret],
+					(err, rows) => {
+						if(err) reject(err);
+
+						resolve(rows);
+					})
+		}).catch(err => {
+			return({failed: true,
+					reason: err});
+		})
+	}
+
 	savePhotos(values) {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	INSERT INTO flickrsetphotos

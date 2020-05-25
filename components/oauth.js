@@ -1,13 +1,23 @@
-// base string = concatenating the HTTP verb, the request URL, and all request parameters sorted by name, using lexicograhpical byte value ordering, separated by an '&'.
-// https://www.youtube.com/watch?v=H8Q83DPZy6E
+/*
+	Flick OAuth Login
+	Author: Carlos Vazquez (cvazquez1976@gmail.com)
+	Personal Website: http://www.carlosvazquez.org
+	Repo: https://github.com/cvazquez/flickr-import
+	Date: 5/25/2020
+
+	Flickr OAuth Guide
+	https://www.flickr.com/services/api/auth.oauth.html
+
+	Some Fun
+	https://www.youtube.com/watch?v=H8Q83DPZy6E
+*/
 
 const	crypto			= require("crypto"),
 		flikrDS			= require('../connectors/mysql').connection,
 		flickrClass		= require("../models/flickr").flickrModel,
 		flickrModel		= new flickrClass(flikrDS),
 		apiClass		= require('./api').api,
-		readline		= require('readline'),
-		rl				= readline.createInterface({
+		rl				= require('readline').createInterface({
 							input: process.stdin,
 							output: process.stdout
 						});
@@ -21,47 +31,43 @@ const	crypto			= require("crypto"),
 		requestTokenResponse,
 		responseKeyValues,
 		requestAuthorizeURL		= "https://www.flickr.com/services/oauth/authorize",
-		requestAccessTokenURL 	= "https://www.flickr.com/services/oauth/access_token",
-		requestAccessTokenResponse;
-
-	// keep this here or bad characters are added to above requestTokenURL
-	console.log("requestTokenFullURL:");
-	console.log(requestTokenFullURL);
+		requestAccessTokenURL 	= "https://www.flickr.com/services/oauth/access_token";
 
 	requestTokenResponse = await requestToken(requestTokenFullURL);
-
-	console.log("\n*********** requestToken(requestTokenURL) Response *********");
-	console.log(requestTokenResponse);
-
-	console.log("\n*********** response key values *********");
 	responseKeyValues = getResponseKeyValues(requestTokenResponse);
-	console.log(responseKeyValues);
 
 	if(responseKeyValues.oauth_callback_confirmed) {
-		console.log("confirmed");
 
 		console.log("\n\nIMPORTANT: Go to the following URL, Click 'OK, I'll Authorize it' and copy the code given:");
 		console.log(requestAuthorizeURL + "?oauth_token=" + responseKeyValues.oauth_token)
-		//
 
 		rl.question("\nEnter Authorization Code: ", async oauth_verifier => {
-			//console.log(oauth_verifier);
+			const	requestAccessTokenQueryString	= getRequestTokenQueryString(
+											apiCreds,
+											requestAccessTokenURL,
+											null,
+											responseKeyValues.oauth_token,
+											oauth_verifier.trim(),
+											responseKeyValues.oauth_token_secret),
+					requestAccessTokenResponse	= await requestToken(
+														requestAccessTokenURL +
+														"?" +
+														requestAccessTokenQueryString),
+					responseAccessTokenKeyValues= getResponseKeyValues(requestAccessTokenResponse),
+					oAuthSaveResponse 			= await flickrModel.saveOAuth(
+													decodeURIComponent(responseAccessTokenKeyValues.user_nsid),
+													decodeURIComponent(responseAccessTokenKeyValues.fullname),
+													decodeURIComponent(responseAccessTokenKeyValues.username),
+													decodeURIComponent(responseAccessTokenKeyValues.oauth_token),
+													decodeURIComponent(responseAccessTokenKeyValues.oauth_token_secret));
 
-			requestTokenQueryString = getRequestTokenQueryString(apiCreds, requestAccessTokenURL, null, responseKeyValues.oauth_token, oauth_verifier.trim(), responseKeyValues.oauth_token_secret)
-
-			requestAccessTokenResponse = await requestToken(
-				requestAccessTokenURL +
-				"?" +
-				requestTokenQueryString);
-
-			console.log(requestAccessTokenResponse);
+			console.log(oAuthSaveResponse)
 
 			rl.close();
 		});
 	} else {
 		console.error("********* Failed response Requesting Tokens *********")
 	}
-
 })();
 
 function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret) {
@@ -101,8 +107,6 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 async function requestToken(url) {
 	const https			= require("https");
 
-	console.log(`requestToken(${url})`);
-
 	return new Promise((resolve, reject) => {
 		https.get(url,
 			res => {
@@ -113,9 +117,8 @@ async function requestToken(url) {
 				});
 
 				res.on("end", () => {
-					if([200,302,401].indexOf(res.statusCode) > -1) {
+					if([200].indexOf(res.statusCode) > -1) {
 						try {
-							console.log(body)
 							resolve(body);
 						} catch(e) {
 							process.stdout.write(`Error parsing requestToken body`);
@@ -135,24 +138,13 @@ async function requestToken(url) {
 
 function getResponseKeyValues(response) {
 	const responseKeyValues = response.split("&");
-
-	let responseTokens = {
-		oauth_callback_confirmed	: null,
-		oauth_token					: null,
-		oauth_token_secret			: null
-	};
+	let responseTokens = {};
 
 	for(let responseKeyValue in responseKeyValues) {
-		const responseKey = responseKeyValues[responseKeyValue].split("=")[0],
-			responseValue = responseKeyValues[responseKeyValue].split("=")[1];
+		const	responseKey = responseKeyValues[responseKeyValue].split("=")[0],
+				responseValue = responseKeyValues[responseKeyValue].split("=")[1];
 
-		switch(responseKey) {
-			case "oauth_callback_confirmed":
-			case "oauth_token":
-			case "oauth_token_secret":
-				responseTokens[responseKey] = responseValue;
-			break;
-		}
+		responseTokens[responseKey] = responseValue;
 	}
 
 	return responseTokens;
