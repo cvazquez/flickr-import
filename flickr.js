@@ -1,9 +1,39 @@
 const	flikrDS			= require('./connectors/mysql').connection,
-		flickrObject	= require("./models/flickr").flickrModel,
-		flickrModel		= new flickrObject(flikrDS),
+		flickrClass		= require("./models/flickr").flickrModel,
+		flickrModel		= new flickrClass(flikrDS),
 		apiClass		= require('./components/api').api;
 
-let api;
+let api,
+	forcePhotoUpdate = process.argv.indexOf("force-photo-update") > -1 ? true : false,
+	myPromise = new Promise(async (resolve, reject) => {
+	let processedCollections;
+
+	api = await new apiClass(flickrModel);
+
+	processedCollections = await processCollections(api);
+
+	resolve("Finished Processing Collections!\n");
+});
+
+myPromise.then((message) => {
+	process.stdout.write(message);
+	process.stdout.write("Closing DB connection...");
+
+	flikrDS.end(err => {
+		if(err) {
+			console.log("***********Error Closing DB connection*********");
+			console.error(err);
+
+			console.log("Issue destroy....");
+			flikrDS.destroy();
+			console.log("destroyed!!");
+			return;
+		}
+		process.stdout.write("closed!\n");
+	});
+
+});
+
 
 async function processCollections(api) {
 	const	collections = await flickrModel.getCollections();
@@ -148,16 +178,15 @@ async function CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbs
 }
 
 async function processPhotos(flickrPhotos, albumId) {
-	let photoValues = [], // hold an array of sql insert values
+	let flickrPhotoValues = [], // hold an array of sql insert values
 		result,
 		flickrPhotosById = {},
-		dbPhotosById = {},
-		albumPhotos;
+		dbPhotosById = {};
 
 	// Create an array of insert values for a multi-insert sql operatiom
 	flickrPhotos.photo.map((flickrPhoto, index) => {
 		if(flickrPhoto.ispublic) {
-			photoValues.push([
+			flickrPhotoValues.push([
 				flickrPhoto.id,
 				albumId,
 				index,
@@ -172,18 +201,34 @@ async function processPhotos(flickrPhotos, albumId) {
 				flickrPhoto.url_m,
 				flickrPhoto.height_m,
 				flickrPhoto.width_m,
+				flickrPhoto.url_o,
+				flickrPhoto.height_o,
+				flickrPhoto.width_o,
 				flickrPhoto.datetaken]);
 
 			flickrPhotosById[flickrPhoto.id] = {
 				title		: flickrPhoto.title,
-				description	: flickrPhoto.description
+				description	: flickrPhoto.description,
+				url_sq		: flickrPhoto.url_sq,
+				height_sq	: flickrPhoto.height_sq,
+				width_sq	: flickrPhoto.width_sq,
+				url_s		: flickrPhoto.url_s,
+				height_s	: flickrPhoto.height_s,
+				width_s		: flickrPhoto.width_s,
+				url_m		: flickrPhoto.url_m,
+				height_m	: flickrPhoto.height_m,
+				width_m		: flickrPhoto.width_m,
+				url_o		: flickrPhoto.url_o,
+				height_o	: flickrPhoto.height_o,
+				width_o		: flickrPhoto.width_o
 			};
 		}
 	});
 
-	if(photoValues.length) {
+
+	if(flickrPhotoValues.length) {
 		// Attempt to bulk insert photos
-		result = await flickrModel.savePhotos(photoValues);
+		result = await flickrModel.savePhotos(flickrPhotoValues);
 
 		if(result.failed) {
 			if(result.errno === 1062) {
@@ -196,7 +241,19 @@ async function processPhotos(flickrPhotos, albumId) {
 					//assign to an Object to compare titles
 					dbPhotosById[dbPhoto.id] = {
 						title		: dbPhoto.title,
-						description	: dbPhoto.description
+						description	: dbPhoto.description,
+						squareURL	: dbPhoto.squareURL,
+						squareWidth	: dbPhoto.squareWidth,
+						squareHeight: dbPhoto.squareHeight,
+						smallURL	: dbPhoto.smallURL,
+						smallWidth	: dbPhoto.smallWidth,
+						smallHeight	: dbPhoto.smallHeight,
+						mediumURL	: dbPhoto.mediumURL,
+						mediumWidth	: dbPhoto.mediumWidth,
+						mediumHeight: dbPhoto.mediumHeight,
+						largeURL	: dbPhoto.largeURL,
+						largeWidth	: dbPhoto.largeWidth,
+						largeHeight	: dbPhoto.largeHeight
 					};
 				});
 
@@ -206,11 +263,29 @@ async function processPhotos(flickrPhotos, albumId) {
 						(	dbPhotosById[id].title !== flickrPhotosById[id].title
 							||
 							dbPhotosById[id].description !== flickrPhotosById[id].description._content
+							||
+							forcePhotoUpdate
 						 )
 						) {
 							// Update database with new title
 							process.stdout.write(`Update Description: ${dbPhotosById[id].description} !== ${flickrPhotosById[id].description._content}\n`);
-							photoUpdatedStatus = await flickrModel.updatePhoto(id, flickrPhotosById[id].title, flickrPhotosById[id].description._content);
+							photoUpdatedStatus = await flickrModel.updatePhoto(
+																id,
+																flickrPhotosById[id].title,
+																flickrPhotosById[id].description._content,
+																flickrPhotosById[id].url_sq,
+																flickrPhotosById[id].height_sq,
+																flickrPhotosById[id].width_sq,
+																flickrPhotosById[id].url_s,
+																flickrPhotosById[id].height_s,
+																flickrPhotosById[id].width_s,
+																flickrPhotosById[id].url_m,
+																flickrPhotosById[id].height_m,
+																flickrPhotosById[id].width_m,
+																flickrPhotosById[id].url_o,
+																flickrPhotosById[id].height_o,
+																flickrPhotosById[id].width_o
+															);
 
 							process.stdout.write("Row Found: " + (photoUpdatedStatus.affectedRows ? true : false));
 							process.stdout.write("\nRow Updated: " + (photoUpdatedStatus.changedRows ? true : false) + "\n");
@@ -234,28 +309,3 @@ async function processPhotos(flickrPhotos, albumId) {
 
 	return true;
 }
-
-let myPromise = new Promise(async (resolve, reject) => {
-	let processedCollections;
-
-	api = await new apiClass(flickrModel)
-
-	processedCollections = await processCollections(api);
-
-	resolve("Finished Processing Collections!\n")
-});
-
-myPromise.then((message) => {
-	process.stdout.write(message);
-	process.stdout.write("Closing DB connection...");
-
-	flikrDS.end(err => {
-		if(err) {
-			console.log("***********Error Closing DB connection*********");
-			console.error(err);
-			return;
-		}
-		process.stdout.write("closed!\n");
-	});
-
-});

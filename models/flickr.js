@@ -88,7 +88,13 @@ exports.flickrModel = class flickrModel {
 	savePhotos(values) {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	INSERT INTO flickrsetphotos
-							(id, flickrSetId, orderId, title, description, squareURL, squareWidth, squareHeight, mediumURL, mediumWidth, mediumHeight, largeURL, largeWidth, largeHeight, takenAt)
+							(	id, flickrSetId, orderId,
+								title, description,
+								smallURL, smallWidth, smallHeight,
+								squareURL, squareWidth, squareHeight,
+								mediumURL, mediumWidth, mediumHeight,
+								largeURL, largeWidth, largeHeight,
+								takenAt)
 							VALUES ?;`,
 							[values],
 					(err, rows) => {
@@ -101,6 +107,8 @@ exports.flickrModel = class flickrModel {
 
 			if(err.errno === 1062) {
 				reason = "Photos already exist in DB";
+			} else {
+			//	console.log(err);
 			}
 
 			return({failed: true,
@@ -148,13 +156,53 @@ exports.flickrModel = class flickrModel {
 			});
 	}
 
-	updatePhoto(id, title, description) {
+	updatePhoto(id,
+				title,
+				description,
+				squareURL,
+				squareWidth,
+				squareHeight,
+				smallURL,
+				smallWidth,
+				smallHeight,
+				mediumURL,
+				mediumWidth,
+				mediumHeight,
+				largeURL,
+				largeWidth,
+				largeHeight) {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	UPDATE flickrsetphotos
 							SET	title		= ?,
 								description	= ?,
+								squareURL	= ?,
+								squareWidth	= ?,
+								squareHeight= ?,
+								smallURL	= ?,
+								smallWidth	= ?,
+								smallHeight	= ?,
+								mediumURL	= ?,
+								mediumWidth	= ?,
+								mediumHeight= ?,
+								largeURL	= ?,
+								largeWidth	= ?,
+								largeHeight	= ?,
 								updatedAt	= now()
-							WHERE id = ?`, [title, description, id],
+							WHERE id = ?`, [title,
+											description,
+											squareURL,
+											squareWidth,
+											squareHeight,
+											smallURL,
+											smallWidth,
+											smallHeight,
+											mediumURL,
+											mediumWidth,
+											mediumHeight,
+											largeURL,
+											largeWidth,
+											largeHeight,
+											id],
 				(err, rows) => {
 					if(err) reject(err);
 
