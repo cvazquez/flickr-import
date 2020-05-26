@@ -1,39 +1,34 @@
-const	flikrDS			= require('./connectors/mysql').connection,
+const	flikrDS			= require('./connectors/mysql'),
+		dbConnection	= flikrDS.connection,
 		flickrClass		= require("./models/flickr").flickrModel,
-		flickrModel		= new flickrClass(flikrDS),
+		flickrModel		= new flickrClass(dbConnection),
 		apiClass		= require('./components/api').api;
 
 let api,
 	forcePhotoUpdate = process.argv.indexOf("force-photo-update") > -1 ? true : false,
+	myPromise,
+	userName;
+
+	for(let argv in process.argv) {
+		if(/^userName=/.test(process.argv[argv])) {
+			userName = process.argv[argv].split("=")[1];
+		}
+	}
+
 	myPromise = new Promise(async (resolve, reject) => {
-	let processedCollections;
+		let processedCollections;
 
-	api = await new apiClass(flickrModel);
+		api = await new apiClass(flickrModel);
 
-	processedCollections = await processCollections(api);
+		processedCollections = await processCollections(api);
 
-	resolve("Finished Processing Collections!\n");
-});
+		resolve("Finished Processing Collections!\n");
+	});
 
 myPromise.then((message) => {
 	process.stdout.write(message);
-	process.stdout.write("Closing DB connection...");
-
-	flikrDS.end(err => {
-		if(err) {
-			console.log("***********Error Closing DB connection*********");
-			console.error(err);
-
-			console.log("Issue destroy....");
-			flikrDS.destroy();
-			console.log("destroyed!!");
-			return;
-		}
-		process.stdout.write("closed!\n");
-	});
-
+	flikrDS.close(dbConnection);
 });
-
 
 async function processCollections(api) {
 	const	collections = await flickrModel.getCollections();
@@ -64,7 +59,7 @@ async function processAlbums(albumbsFromFlikr, collectionId) {
 	await CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId);
 
 	for(let albumId in albumbsFromDBById) {
-		album = await api.getAlbumPhotos(albumId);
+		album = await api.getAlbumPhotosOAuth(albumId, userName, flickrModel);
 		await processPhotos(album.set, albumId)
 	}
 
@@ -230,8 +225,8 @@ async function processPhotos(flickrPhotos, albumId) {
 		// Attempt to bulk insert photos
 		result = await flickrModel.savePhotos(flickrPhotoValues);
 
-		if(result.failed) {
-			if(result.errno === 1062) {
+		if(result.failed ||	forcePhotoUpdate) {
+			if(result.errno === 1062 ||	forcePhotoUpdate) {
 				// Photo already exists. If different title then update
 
 				// Retrieve DB photos and match with Flickr photo ids and title for updating
@@ -267,8 +262,8 @@ async function processPhotos(flickrPhotos, albumId) {
 							forcePhotoUpdate
 						 )
 						) {
-							// Update database with new title
-							process.stdout.write(`Update Description: ${dbPhotosById[id].description} !== ${flickrPhotosById[id].description._content}\n`);
+							// Refresh photos in DB with Flickr data
+							console.log('Updating: ' + flickrPhotosById[id].title);
 							photoUpdatedStatus = await flickrModel.updatePhoto(
 																id,
 																flickrPhotosById[id].title,

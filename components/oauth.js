@@ -12,66 +12,11 @@
 	https://www.youtube.com/watch?v=H8Q83DPZy6E
 */
 
-const	crypto			= require("crypto"),
-		flikrDS			= require('../connectors/mysql').connection,
-		flickrClass		= require("../models/flickr").flickrModel,
-		flickrModel		= new flickrClass(flikrDS),
-		apiClass		= require('./api').api,
-		rl				= require('readline').createInterface({
-							input: process.stdin,
-							output: process.stdout
-						});
+const	crypto	= require("crypto"),
+		https	= require("https");
 
-( async () =>{
-	let api						= await new apiClass(flickrModel),
-		apiCreds				= await api.getAPICreds(),
-		requestTokenURL			= "https://www.flickr.com/services/oauth/request_token",
-		requestTokenQueryString	= getRequestTokenQueryString(apiCreds, requestTokenURL, "oob"),
-		requestTokenFullURL 	= requestTokenURL + "?" + requestTokenQueryString,
-		requestTokenResponse,
-		responseKeyValues,
-		requestAuthorizeURL		= "https://www.flickr.com/services/oauth/authorize",
-		requestAccessTokenURL 	= "https://www.flickr.com/services/oauth/access_token";
-
-	requestTokenResponse = await requestToken(requestTokenFullURL);
-	responseKeyValues = getResponseKeyValues(requestTokenResponse);
-
-	if(responseKeyValues.oauth_callback_confirmed) {
-
-		console.log("\n\nIMPORTANT: Go to the following URL, Click 'OK, I'll Authorize it' and copy the code given:");
-		console.log(requestAuthorizeURL + "?oauth_token=" + responseKeyValues.oauth_token)
-
-		rl.question("\nEnter Authorization Code: ", async oauth_verifier => {
-			const	requestAccessTokenQueryString	= getRequestTokenQueryString(
-											apiCreds,
-											requestAccessTokenURL,
-											null,
-											responseKeyValues.oauth_token,
-											oauth_verifier.trim(),
-											responseKeyValues.oauth_token_secret),
-					requestAccessTokenResponse	= await requestToken(
-														requestAccessTokenURL +
-														"?" +
-														requestAccessTokenQueryString),
-					responseAccessTokenKeyValues= getResponseKeyValues(requestAccessTokenResponse),
-					oAuthSaveResponse 			= await flickrModel.saveOAuth(
-													decodeURIComponent(responseAccessTokenKeyValues.user_nsid),
-													decodeURIComponent(responseAccessTokenKeyValues.fullname),
-													decodeURIComponent(responseAccessTokenKeyValues.username),
-													decodeURIComponent(responseAccessTokenKeyValues.oauth_token),
-													decodeURIComponent(responseAccessTokenKeyValues.oauth_token_secret));
-
-			console.log(oAuthSaveResponse)
-
-			rl.close();
-		});
-	} else {
-		console.error("********* Failed response Requesting Tokens *********")
-	}
-})();
-
-function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret) {
-	const	requestTokens	= {
+function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret, queryKeyValues) {
+	let	requestTokens	= {
 				oauth_callback			: oauth_callback || null,
 				oauth_consumer_key		: apiCreds.key,
 				oauth_nonce				: crypto.randomBytes(5).toString('hex'),
@@ -80,11 +25,17 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 				oauth_token				: oauth_token || null,
 				oauth_verifier			: oauth_verifier || null,
 				oauth_version			: "1.0"
-			};
-
-	let	baseString = "GET&" + encodeURIComponent(requestURL) + "&",
+			},
+		baseString = "GET&" + encodeURIComponent(requestURL) + "&",
 		oauthSignature,
 		requestQueryString = "";
+
+	// Append any extra querystring values to the request tokens
+	if(queryKeyValues) {
+		for(let token in queryKeyValues) {
+			requestTokens[token] = queryKeyValues[token];
+		}
+	}
 
 	for(let token in requestTokens) {
 		if(requestTokens[token] !== null) {
@@ -104,9 +55,7 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 }
 
 
-async function requestToken(url) {
-	const https			= require("https");
-
+ async function requestToken(url) {
 	return new Promise((resolve, reject) => {
 		https.get(url,
 			res => {
@@ -149,3 +98,7 @@ function getResponseKeyValues(response) {
 
 	return responseTokens;
 }
+
+exports.getRequestTokenQueryString = getRequestTokenQueryString;
+exports.requestToken = requestToken;
+exports.getResponseKeyValues = getResponseKeyValues;

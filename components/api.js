@@ -1,4 +1,5 @@
-const https	= require("https");
+const	https	= require("https"),
+		oauth	= require("./oauth");
 
 exports.api = class api {
 	constructor(flickrModel) {
@@ -121,6 +122,72 @@ exports.api = class api {
 					});
 		}).catch(err => {
 			process.stdout.write(`\ngetPhotoAlbums(${albumId}) Promise Error\n`);
+			process.stdout.write(err);
+		});
+	}
+
+
+	async getAlbumPhotosOAuth(albumId, userName, flickrModel) {
+		const	getOAuthTokens			= flickrModel.getOAuthAccessToken(userName),
+				restEndpoint			= "https://www.flickr.com/services/rest",
+				queryKeyValues			= {
+											method			: "flickr.photosets.getPhotos",
+											extras			: "description,date_taken,url_sq,url_s,url_m,url_o",
+											photoset_id		: albumId,
+											privacy_filter	: 1,
+											user_id			: this.api.userId,
+											//per_page		: 100,
+											format			: "json",
+											nojsoncallback	: 1
+										},
+				requestQueryString		= oauth.getRequestTokenQueryString(
+															this.api,
+															restEndpoint,
+															null,
+															getOAuthTokens.oauth_token,
+															null,
+															null,
+															queryKeyValues),
+				url						= `https://www.flickr.com/services/rest?` + requestQueryString;
+
+		process.stdout.write(`\n\n********** API get Album photos for ${albumId} **********\n`);
+
+		return new Promise((resolve, reject) => {
+			https.get(url,
+					(res) => {
+						var body = '';
+
+						res.on('data', function(chunk){
+							body += chunk;
+						});
+
+						res.on("end", () => {
+							if(res.statusCode === 200) {
+								try {
+									const jsonResponse = JSON.parse(body);
+
+									if(!jsonResponse.stat || jsonResponse.stat !== "ok" || !jsonResponse.photoset) {
+										throw new Error("jsonResponse bad");
+									}
+
+									resolve({set : jsonResponse.photoset});
+
+								} catch(e) {
+									process.stdout.write(`\nError parsing JSON from getAlbumPhotosOAuth(${albumId})\n`);
+									process.stdout.write(e)
+								}
+							} else {
+								process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) bad status code (${res.statusCode})\n`);
+							}
+						});
+					}).on('error', (e) => {
+						process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) API response error\n`);
+						console.error(e);
+
+						reject(e);
+					});
+		}).catch(err => {
+			process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) Promise Error\n`);
 			process.stdout.write(err);
 		});
 	}

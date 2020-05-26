@@ -59,6 +59,24 @@ exports.flickrModel = class flickrModel {
 		})
 	}
 
+	getOAuthAccessToken(userName) {
+		return new Promise((resolve, reject) => {
+			this.ds.query(`	SELECT userNSid, fullName, oauthToken, oauthTokenSecret
+							FROM flickroauth
+							WHERE userName = ?
+							ORDER BY id desc
+							LIMIT 1`, [userName],
+				(err, rows) => {
+					if(err) reject(err);
+
+					resolve(rows);
+				});
+		}).catch(err => {
+			return({failed: true,
+					reason: err});
+		});
+	}
+
 	saveAlbum(id, flickrCollectionId, title, description) {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	INSERT INTO flickrsets
@@ -102,7 +120,7 @@ exports.flickrModel = class flickrModel {
 
 	savePhotos(values) {
 		return new Promise((resolve, reject) => {
-			this.ds.query(`	INSERT INTO flickrsetphotos
+			this.ds.query(`	INSERT IGNORE INTO flickrsetphotos
 							(	id, flickrSetId, orderId,
 								title, description,
 								smallURL, smallWidth, smallHeight,
