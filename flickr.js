@@ -10,15 +10,20 @@ let api,
 	userName;
 
 	for(let argv in process.argv) {
-		if(/^userName=/.test(process.argv[argv])) {
+		if(/^userName=[a-zA-Z0-9\-_@]+/.test(process.argv[argv])) {
 			userName = process.argv[argv].split("=")[1];
 		}
+	}
+
+	if(!userName) {
+		console.error("userName= argument required");
+		process.exit(0);
 	}
 
 	myPromise = new Promise(async (resolve, reject) => {
 		let processedCollections;
 
-		api = await new apiClass(flickrModel);
+		api = await new apiClass(flickrModel, userName);
 
 		processedCollections = await processCollections(api);
 
@@ -31,14 +36,20 @@ myPromise.then((message) => {
 });
 
 async function processCollections(api) {
-	const	collections = await flickrModel.getCollections();
+	const	collections = await flickrModel.getCollections(),
+			failedCount = 0;
 
 	return Promise.all(collections.map(async collection => {
 		process.stdout.write(`\n************* COLLECTION ID: ${collection.id} ************\n`);
 
-		let collectionAlbums = await api.getCollectionAlbums(collection.id);
+		let collectionAlbums = await api.getCollectionAlbumsOAuth(collection.id);
 
-		await processAlbums(collectionAlbums.set, collection.id);
+		if(collectionAlbums) {
+			await processAlbums(collectionAlbums.collections.collection[0].set, collection.id);
+		} else {
+			failedCount++;
+			return false;
+		}
 	}));
 }
 
@@ -59,8 +70,13 @@ async function processAlbums(albumbsFromFlikr, collectionId) {
 	await CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbsFromDBById, collectionId);
 
 	for(let albumId in albumbsFromDBById) {
-		album = await api.getAlbumPhotosOAuth(albumId, userName, flickrModel);
-		await processPhotos(album.set, albumId)
+		album = await api.getAlbumPhotosOAuth(albumId);
+
+		if(album) {
+			await processPhotos(album.photoset, albumId)
+		} else {
+			console.log(`\n\n************ ERROR PROCESSING ALBUM ${albumId}\n\n`);
+		}
 	}
 
 	return true;

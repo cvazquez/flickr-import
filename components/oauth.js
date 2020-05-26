@@ -15,7 +15,7 @@
 const	crypto	= require("crypto"),
 		https	= require("https");
 
-function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret, queryKeyValues) {
+function getRequestTokenQueryString(method="GET", apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret, queryKeyValues) {
 	let	requestTokens	= {
 				oauth_callback			: oauth_callback || null,
 				oauth_consumer_key		: apiCreds.key,
@@ -26,7 +26,7 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 				oauth_verifier			: oauth_verifier || null,
 				oauth_version			: "1.0"
 			},
-		baseString = "GET&" + encodeURIComponent(requestURL) + "&",
+		baseString = method + "&" + encodeURIComponent(requestURL) + "&",
 		oauthSignature,
 		requestQueryString = "";
 
@@ -35,11 +35,17 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 		for(let token in queryKeyValues) {
 			requestTokens[token] = queryKeyValues[token];
 		}
+
+		// Sort tokens
+		requestTokens = (o => Object.keys(requestTokens).sort().reduce((acc, cur) => (acc[cur] = requestTokens[cur], acc), {}))();
 	}
 
+	const lastToken = Object.keys(requestTokens)[Object.keys(requestTokens).length-1];
+
 	for(let token in requestTokens) {
+		// tokens to include in signature (include all)
 		if(requestTokens[token] !== null) {
-			baseString += token + encodeURIComponent("=" + requestTokens[token] + (token !== "oauth_version" ? "&" : ""));
+			baseString += token + encodeURIComponent("=" + requestTokens[token] + (token !== lastToken ? "&" : ""));
 		}
 	}
 
@@ -47,13 +53,12 @@ function getRequestTokenQueryString(apiCreds, requestURL, oauth_callback, oauth_
 
 	for(let token in requestTokens) {
 		if(requestTokens[token] !== null) {
-			requestQueryString += token + "=" + requestTokens[token] + "&";
+			requestQueryString += token + "=" + encodeURIComponent(requestTokens[token]) + "&";
 		}
 	}
 
 	return (requestQueryString + "oauth_signature=" + encodeURIComponent(oauthSignature));
 }
-
 
  async function requestToken(url) {
 	return new Promise((resolve, reject) => {

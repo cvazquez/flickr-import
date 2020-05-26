@@ -27,7 +27,7 @@ const	flikrDS			= require('./connectors/mysql'),
 	let api						= await new apiClass(flickrModel),
 		apiCreds				= await api.getAPICreds(),
 		requestTokenURL			= "https://www.flickr.com/services/oauth/request_token",
-		requestTokenQueryString	= oauth.getRequestTokenQueryString(apiCreds, requestTokenURL, "oob"),
+		requestTokenQueryString	= oauth.getRequestTokenQueryString("GET", apiCreds, requestTokenURL, "oob"),
 		requestTokenFullURL 	= requestTokenURL + "?" + requestTokenQueryString,
 		requestTokenResponse,
 		responseKeyValues,
@@ -44,6 +44,7 @@ const	flikrDS			= require('./connectors/mysql'),
 
 		rl.question("\nEnter Authorization Code: ", async oauth_verifier => {
 			const	requestAccessTokenQueryString	= oauth.getRequestTokenQueryString(
+																"GET",
 																apiCreds,
 																requestAccessTokenURL,
 																null,

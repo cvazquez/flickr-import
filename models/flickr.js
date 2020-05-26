@@ -7,7 +7,8 @@ exports.flickrModel = class flickrModel {
 		return new Promise((resolve, reject) => {
 		this.ds.query(`	SELECT id, title, description
 						FROM flickrsets
-						WHERE id IN (${albumbIds})`,
+						WHERE	id IN (${albumbIds})
+								AND deletedAt IS NULL`,
 			(err, rows) => {
 				if(err) console.log(err);
 
@@ -20,7 +21,8 @@ exports.flickrModel = class flickrModel {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	SELECT id, title, description
 							FROM flickrsetphotos
-							WHERE flickrSetId = ?`, [albumId],
+							WHERE	flickrSetId = ?
+									AND deletedAt IS NULL`, [albumId],
 				(err, rows) => {
 					if(err) reject(err);
 
@@ -36,7 +38,8 @@ exports.flickrModel = class flickrModel {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`
 				SELECT id
-				FROM flickrcollections;`,
+				FROM	flickrcollections
+				WHERE	deletedAt IS NULL;`,
 			(err, rows) => {
 				if(err) console.log(err);
 
@@ -63,7 +66,8 @@ exports.flickrModel = class flickrModel {
 		return new Promise((resolve, reject) => {
 			this.ds.query(`	SELECT userNSid, fullName, oauthToken, oauthTokenSecret
 							FROM flickroauth
-							WHERE userName = ?
+							WHERE 	userName = ?
+									AND deletedAt IS NULL
 							ORDER BY id desc
 							LIMIT 1`, [userName],
 				(err, rows) => {

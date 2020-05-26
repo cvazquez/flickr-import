@@ -2,11 +2,14 @@ const	https	= require("https"),
 		oauth	= require("./oauth");
 
 exports.api = class api {
-	constructor(flickrModel) {
-		this.flickrModel = flickrModel;
+	constructor(flickrModel, userName) {
+		this.flickrModel	= flickrModel;
+		this.restEndpoint	= "https://www.flickr.com/services/rest";
+		this.userName		= userName;
 
 		return (async () => {
 			this.api = await this.getAPICreds();
+			this.OAuthTokens = await this.flickrModel.getOAuthAccessToken(this.userName);
 
 			return this;
 		})();
@@ -37,100 +40,33 @@ exports.api = class api {
 		return api;
 	}
 
-	getCollectionAlbums(collectionId) {
-		return new Promise((resolve, reject) => {
-			https.get(`https://api.flickr.com/services/rest/?method=flickr.collections.getTree&api_key=${this.api.key}&collection_id=${collectionId}&user_id=${this.api.userId}&format=json&nojsoncallback=1`,
-				res => {
-					var body = "";
+	async getCollectionAlbumsOAuth(collectionId) {
+		const	queryKeyValues			= {
+											collection_id	: collectionId,
+											method			: "flickr.collections.getTree",
+											//user_id			: this.OAuthTokens[0].userNSid,
+											format			: "json",
+											nojsoncallback	: 1
+										},
+				requestQueryString		= oauth.getRequestTokenQueryString(
+															"GET",
+															this.api,
+															this.restEndpoint,
+															null,
+															this.OAuthTokens[0].oauthToken,
+															null,
+															this.OAuthTokens[0].oauthTokenSecret,
+															queryKeyValues),
+				url						= `${this.restEndpoint}?` + requestQueryString;
 
-					res.on("data", data => {
-						body += data;
-					});
+		process.stdout.write(`\n\n********** OAuth API get Collection Albums for ${collectionId} **********\n`);
 
-					res.on("end", () => {
-						if(res.statusCode === 200) {
-							try {
-								let jsonResponse = JSON.parse(body);
+		return await this.getMethodWithOAuth(url);
 
-								if(!jsonResponse.stat || jsonResponse.stat !== "ok" ||
-									!jsonResponse.collections || !jsonResponse.collections.collection ||
-									!jsonResponse.collections.collection[0] || !jsonResponse.collections.collection[0].set)
-									throw new Error("Error parsing JSON");
-
-								process.stdout.write(`************* COLLECTION TITLE: ${jsonResponse.collections.collection[0].title} ************\n`);
-
-								resolve({set : jsonResponse.collections.collection[0].set});
-							} catch(e) {
-
-								process.stdout.write(`Error parsing JSON from getCollections(${collectionId})`);
-								console.log(e);
-								reject(e);
-							}
-						} else {
-							throw new Error(`Bad response code in getAPICollections(${collectionId})`);
-						}
-					});
-			}).on('error', (e) => {
-				process.stdout.write(`\ngetAPICollections(${collectionId}) API response error\n`);
-				console.error(e);
-
-				reject(e);
-			});
-		}).catch(err => {
-			process.stdout.write(`\ngetAPICollections(${collectionId}) Promise Error\n`);
-			process.stdout.write(err);
-		});
 	}
 
-	async getAlbumPhotos(albumId) {
-
-		process.stdout.write(`\n\n********** API get Album photos for ${albumId} **********\n`);
-
-		return new Promise((resolve, reject) => {
-			https.get(`https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=${this.api.key}&photoset_id=${albumId}&extras=description,date_taken,url_sq,url_s,url_m,url_o,geo,tags&privacy_filter=1&user_id=${this.api.userId}&per_page=100&format=json&nojsoncallback=1`,
-					(res) => {
-						var body = '';
-
-						res.on('data', function(chunk){
-							body += chunk;
-						});
-
-						res.on("end", () => {
-							if(res.statusCode === 200) {
-								try {
-									const jsonResponse = JSON.parse(body);
-
-									if(!jsonResponse.stat || jsonResponse.stat !== "ok" || !jsonResponse.photoset) {
-										throw new Error("jsonResponse bad");
-									}
-
-									resolve({set : jsonResponse.photoset});
-
-								} catch(e) {
-									process.stdout.write(`\nError parsing JSON from getPhotoAlbums(${albumId})\n`);
-									process.stdout.write(e)
-								}
-							} else {
-								process.stdout.write(`\ngetPhotoAlbums(${albumId}) bad status code (${res.statusCode})\n`);
-							}
-						});
-					}).on('error', (e) => {
-						process.stdout.write(`\ngetPhotoAlbums(${albumId}) API response error\n`);
-						console.error(e);
-
-						reject(e);
-					});
-		}).catch(err => {
-			process.stdout.write(`\ngetPhotoAlbums(${albumId}) Promise Error\n`);
-			process.stdout.write(err);
-		});
-	}
-
-
-	async getAlbumPhotosOAuth(albumId, userName, flickrModel) {
-		const	getOAuthTokens			= flickrModel.getOAuthAccessToken(userName),
-				restEndpoint			= "https://www.flickr.com/services/rest",
-				queryKeyValues			= {
+	async getAlbumPhotosOAuth(albumId) {
+		const	queryKeyValues			= {
 											method			: "flickr.photosets.getPhotos",
 											extras			: "description,date_taken,url_sq,url_s,url_m,url_o",
 											photoset_id		: albumId,
@@ -141,16 +77,23 @@ exports.api = class api {
 											nojsoncallback	: 1
 										},
 				requestQueryString		= oauth.getRequestTokenQueryString(
+															"GET",
 															this.api,
-															restEndpoint,
+															this.restEndpoint,
 															null,
-															getOAuthTokens.oauth_token,
+															this.OAuthTokens.oauth_token,
 															null,
 															null,
 															queryKeyValues),
-				url						= `https://www.flickr.com/services/rest?` + requestQueryString;
+				url						= `${this.restEndpoint}?` + requestQueryString;
 
 		process.stdout.write(`\n\n********** API get Album photos for ${albumId} **********\n`);
+
+		return await this.getMethodWithOAuth(url);
+	}
+
+
+	async getMethodWithOAuth(url) {
 
 		return new Promise((resolve, reject) => {
 			https.get(url,
@@ -164,31 +107,41 @@ exports.api = class api {
 						res.on("end", () => {
 							if(res.statusCode === 200) {
 								try {
-									const jsonResponse = JSON.parse(body);
+									let jsonResponse = JSON.parse(body);
 
-									if(!jsonResponse.stat || jsonResponse.stat !== "ok" || !jsonResponse.photoset) {
-										throw new Error("jsonResponse bad");
+									if(!jsonResponse.stat || jsonResponse.stat !== "ok") {
+										if(jsonResponse.stat && jsonResponse.stat === "fail" && jsonResponse.message) {
+											reject(`\n\n API MESSAGE: ${jsonResponse.message} \n\n`);
+
+											return false;
+										} else {
+											reject("Error parsing JSON");
+											return false;
+										}
 									}
 
-									resolve({set : jsonResponse.photoset});
-
+									resolve(jsonResponse);
 								} catch(e) {
-									process.stdout.write(`\nError parsing JSON from getAlbumPhotosOAuth(${albumId})\n`);
-									process.stdout.write(e)
+
+									process.stdout.write(`\n\nError parsing JSON`);
+									reject(e);
 								}
 							} else {
-								process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) bad status code (${res.statusCode})\n`);
+								reject(`\nBad status code (${res.statusCode})\n`);
+								return false;
 							}
 						});
 					}).on('error', (e) => {
-						process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) API response error\n`);
-						console.error(e);
-
+						process.stdout.write(`\nAPI response error\n`);
 						reject(e);
+						return false;
 					});
 		}).catch(err => {
-			process.stdout.write(`\ngetAlbumPhotosOAuth(${albumId}) Promise Error\n`);
 			process.stdout.write(err);
+
+			process.stdout.write(`\nPromise Error\n`);
+			console.log(url)
+			return false;
 		});
 	}
 }
