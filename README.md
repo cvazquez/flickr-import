@@ -22,19 +22,19 @@ https://github.com/cvazquez/databases/blob/master/cvazquezblog/tables/flickroaut
 
 
 **Checkout a cloned copy of the flickr-import code**
->$ sudo git clone https://github.com/cvazquez/flickr-import.git flickr-import
+> $ sudo git clone https://github.com/cvazquez/flickr-import.git flickr-import
 
 
 **Install**
-```$ cd flickr-import```
-```$ sudo npm install```
+> cd flickr-import
+
+> sudo npm install
 
 
 **Database Credentials**
 For Database Credentials, create a folder and a file, in a DIRECTORY UP called ../config/mysql.js
 with this object exporting.
 
-// Start DB code (Fill in your DB credentials)
 ```
 exports.cred  =   {
     host        : 'localhost',
@@ -43,14 +43,15 @@ exports.cred  =   {
 	database    : '[Your DB name]',
 	supportBigNumbers	: true,
 	bigNumberStrings	: true
-};```
-// End DB code
+};
+```
 
 
 ##How to run:
+
 **Create OAuth tokens**
 (Your will be given a link to Flickr, where you have to login and Accept access to your account. A code will be given that you enter into the prompt the following script asks for.)
 > sudo node oauth.js
 
 **Import Flickr Photos**
->$ sudo node flickr.js userName=[your flickr userid]
+> sudo node flickr.js userName=[your flickr userid]
