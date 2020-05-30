@@ -1,4 +1,4 @@
-const	flikrDS			= require('./connectors/mysql'),
+const	flikrDS			= require("./connectors/mysql"),
 		dbConnection	= flikrDS.connection,
 		flickrClass		= require("./models/flickr").flickrModel,
 		flickrModel		= new flickrClass(dbConnection),
@@ -91,7 +91,7 @@ function getAlbumnByIdObjects(albumbsFromFlikr) {
 	albumbsFromFlikr.map(album => {
 		albumIdsFromFlickr.push(album.id)
 
-		process.stdout.write(album.title + "\n" + (album.description.length ? "* " + album.description + "\n" : "\n"));
+		process.stdout.write(album.title + ` (${album.id}\n` + (album.description.length ? "* " + album.description + "\n\n" : "\n\n"));
 
 		// Popuplate a new object that uses the album id as a key
 		albumbsFromFlikrById[album.id] = {
@@ -117,18 +117,18 @@ async function getDatabaseAlbumsById(albumIdsFromFlickr, albumbsFromFlikrById) {
 		if(!albumbsFromFlikrById.hasOwnProperty(album.id)) {
 			// Album in Database doesn't exist at flickr
 			process.stdout.write("\nWARNING: Missing album at Flickr that is in the DB (probably need to delete from or fix database) : \n");
-			process.stdout.write(album);
+			console.log(album);
 			atFlickr = false;
 		}
 
-		process.stdout.write("\n" + album.title + "\n" + (album.description.length ? "* " + album.description + "\n" : ""));
+			process.stdout.write("\n" + album.title + "\n" + (album.description.length ? "* " + album.description + "\n" : ""));
 
-		// Create an object of albums in DB
-		albumbsFromDBById[album.id] = {
-			title		: album.title,
-			description	: album.description,
-			atFlickr
-		}
+			// Create an object of albums in DB
+			albumbsFromDBById[album.id] = {
+				title		: album.title,
+				description	: album.description,
+				atFlickr
+			}
 	});
 	process.stdout.write("\n********** /DB Albums **********\n\n")
 
@@ -146,7 +146,7 @@ async function CheckAndCreateMissingDatabaseAlbums(albumbsFromFlikrById, albumbs
 
 			process.stdout.write("\nAlbum from Flickr is Missing from the DB. Creating....\n");
 			process.stdout.write(albumFromFlickrId + "\n");
-			process.stdout.write(albumbsFromFlikrById[albumFromFlickrId]);
+			console.log(albumbsFromFlikrById[albumFromFlickrId]);
 
 			// TODO: perform a multi-insert
 			createdAlbumStatus = await flickrModel.saveAlbum(
