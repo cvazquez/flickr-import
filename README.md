@@ -14,6 +14,17 @@ https://github.com/cvazquez/databases/blob/master/cvazquezblog/tables/flickrsetp
 https://github.com/cvazquez/databases/blob/master/cvazquezblog/tables/flickrsets.sql
 https://github.com/cvazquez/databases/blob/master/cvazquezblog/tables/flickroauth.sql
 
+**Set Table Permissions**
+```
+create user [your_user_name]@localhost identified WITH mysql_native_password by '[your_password]';
+GRANT SELECT, INSERT, UPDATE on [your_db_name].adminsettings to [your_user_name]@localhost;
+GRANT SELECT, INSERT, UPDATE on [your_db_name].flickrcollections to [your_user_name]@localhost;
+GRANT SELECT, INSERT, UPDATE on [your_db_name].flickrsetphotos to [your_user_name]@localhost;
+GRANT SELECT, INSERT, UPDATE on [your_db_name].flickrsetphotourls to [your_user_name]@localhost;
+GRANT SELECT, INSERT, UPDATE on [your_db_name].flickrsets to [your_user_name]@localhost;
+GRANT SELECT, INSERT, UPDATE on [your_db_name].flickroauth to [your_user_name]@localhost;
+```
+
 1. In flickcollections, insert a record with your Flickr collection information.
 2. In adminsettings, see supplied insert statements and fill in your Flickr API information
 3. All other tables are filled in with the flickr.js script
