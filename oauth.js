@@ -96,13 +96,19 @@ const	// Connect to MySQL DB
 				console.log("\nSaved your Access Tokens to the DB with the following values. Use these to access API.")
 				console.log(responseAccessTokenKeyValues)
 
-console.log("\n\n user name = " + responseAccessTokenKeyValues.username);
 				// Test login
-				const	// Create a new api instance, that retieves the latest oAuth access tokens just created for this user
+				const	// Create a new api instance, that retrieves the latest oAuth access tokens just created for this user
 						apiTest				= await new apiClass(flickrModel, decodeURIComponent(responseAccessTokenKeyValues.username)),
 						oAuthTestResponse	= await apiTest.getOAuthTest();
 
+					console.log("\n\noAuthTestResponse:");
 					console.log(oAuthTestResponse);
+
+					if(oAuthTestResponse.stat && oAuthTestResponse.stat === "ok") {
+						console.log("\noAuth Test Sucessfull!!!\n\n");
+					} else {
+						console.log("\nUnsucessfull oAuth Test!!\n\n");
+					}
 
 			} else {
 				console.log("\nISSUE saving you access tokens. See the following errors:\n");
