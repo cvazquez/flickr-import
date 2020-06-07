@@ -66,3 +66,8 @@ exports.cred  =   {
 
 **Import Flickr Photos**
 > sudo node flickr.js userName=[your flickr userid]
+
+**Options**
+
+Force update of all photos
+> force-photo-update
