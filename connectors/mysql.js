@@ -26,6 +26,6 @@ exports.close = function closeConnection(dbHandle) {
 			console.log("destroyed!!");
 			return;
 		}
-		process.stdout.write("DB Connection closed!\n");
+		process.stdout.write("DB Connection closed!\n\n");
 	});
 };

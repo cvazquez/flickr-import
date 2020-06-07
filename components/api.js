@@ -40,15 +40,35 @@ exports.api = class api {
 		return api;
 	}
 
+	async getOAuthTest() {
+		// https://www.flickr.com/services/api/flickr.test.login.html
+		const	queryKeyValues			= {
+											method			: "flickr.test.login",
+											format			: "json",
+											nojsoncallback	: 1
+										},
+				requestQueryString		= oauth.getSignedRequestTokenQueryString(
+															"GET",
+															this.api,
+															this.restEndpoint,
+															null,
+															this.OAuthTokens[0].oauthToken,
+															null,
+															this.OAuthTokens[0].oauthTokenSecret,
+															queryKeyValues),
+				url						= `${this.restEndpoint}?` + requestQueryString;
+
+		return await this.getMethodWithOAuth(url);
+	}
+
 	async getCollectionAlbumsOAuth(collectionId) {
 		const	queryKeyValues			= {
 											collection_id	: collectionId,
 											method			: "flickr.collections.getTree",
-											//user_id			: this.OAuthTokens[0].userNSid,
 											format			: "json",
 											nojsoncallback	: 1
 										},
-				requestQueryString		= oauth.getRequestTokenQueryString(
+				requestQueryString		= oauth.getSignedRequestTokenQueryString(
 															"GET",
 															this.api,
 															this.restEndpoint,
@@ -76,14 +96,14 @@ exports.api = class api {
 											format			: "json",
 											nojsoncallback	: 1
 										},
-				requestQueryString		= oauth.getRequestTokenQueryString(
+				requestQueryString		= oauth.getSignedRequestTokenQueryString(
 															"GET",
 															this.api,
 															this.restEndpoint,
 															null,
-															this.OAuthTokens.oauth_token,
+															this.OAuthTokens[0].oauthToken,
 															null,
-															null,
+															this.OAuthTokens[0].oauthTokenSecret,
 															queryKeyValues),
 				url						= `${this.restEndpoint}?` + requestQueryString;
 
@@ -91,7 +111,6 @@ exports.api = class api {
 
 		return await this.getMethodWithOAuth(url);
 	}
-
 
 	async getMethodWithOAuth(url) {
 
@@ -139,7 +158,7 @@ exports.api = class api {
 		}).catch(err => {
 			process.stdout.write(err);
 
-			process.stdout.write(`\nPromise Error\n`);
+			process.stdout.write(`\n\nPromise Error\n\n`);
 			console.log(url)
 			return false;
 		});

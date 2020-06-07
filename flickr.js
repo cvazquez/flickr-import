@@ -5,32 +5,35 @@ const	flikrDS			= require("./connectors/mysql"),
 		apiClass		= require('./components/api').api;
 
 let api,
-	forcePhotoUpdate = process.argv.indexOf("force-photo-update") > -1 ? true : false,
+	forcePhotoUpdate = process.argv.indexOf("force-photo-update") > -1 ? true : false, // Updates all existing DB photos. No option just inserts new photos.
 	myPromise,
 	userName;
 
-	for(let argv in process.argv) {
-		if(/^userName=[a-zA-Z0-9\-_@]+/.test(process.argv[argv])) {
-			userName = process.argv[argv].split("=")[1];
-		}
+for(let argv in process.argv) {
+	// Check fr Required Arguments
+
+	// Flickr userName for oAuth
+	if(/^userName=[a-zA-Z0-9\-_@]+/.test(process.argv[argv])) {
+		userName = process.argv[argv].split("=")[1];
 	}
+}
 
-	if(!userName) {
-		console.error("userName= argument required");
-		process.exit(0);
-	}
+if(!userName) {
+	console.error("userName= argument required");
+	process.exit(0);
+}
 
-	myPromise = new Promise(async (resolve, reject) => {
-		let processedCollections;
+myPromise = new Promise(async (resolve, reject) => {
+	let processedCollections;
 
-		api = await new apiClass(flickrModel, userName);
+	api = await new apiClass(flickrModel, userName);
 
-		processedCollections = await processCollections(api);
+	processedCollections = await processCollections(api);
 
-		resolve("Finished Processing Collections!\n");
-	});
+	resolve("\n\nFinished Processing Collections!\n\n");
+});
 
-myPromise.then((message) => {
+myPromise.then(message => {
 	process.stdout.write(message);
 	flikrDS.close(dbConnection);
 });
@@ -279,7 +282,7 @@ async function processPhotos(flickrPhotos, albumId) {
 						 )
 						) {
 							// Refresh photos in DB with Flickr data
-							console.log('Updating: ' + flickrPhotosById[id].title);
+							process.stdout.write('Updating: ' + flickrPhotosById[id].title);
 							photoUpdatedStatus = await flickrModel.updatePhoto(
 																id,
 																flickrPhotosById[id].title,
@@ -299,7 +302,7 @@ async function processPhotos(flickrPhotos, albumId) {
 															);
 
 							process.stdout.write("Row Found: " + (photoUpdatedStatus.affectedRows ? true : false));
-							process.stdout.write("\nRow Updated: " + (photoUpdatedStatus.changedRows ? true : false) + "\n");
+							process.stdout.write("\nRow Updated: " + (photoUpdatedStatus.changedRows ? true : false) + "\n\n");
 						}
 				}
 			}

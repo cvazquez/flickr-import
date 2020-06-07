@@ -15,7 +15,7 @@
 const	crypto	= require("crypto"),
 		https	= require("https");
 
-function getRequestTokenQueryString(method="GET", apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret, queryKeyValues) {
+function getSignedRequestTokenQueryString(method="GET", apiCreds, requestURL, oauth_callback, oauth_token, oauth_verifier, oauth_token_secret, queryKeyValues) {
 	let	requestTokens	= {
 				oauth_callback			: oauth_callback || null,
 				oauth_consumer_key		: apiCreds.key,
@@ -60,6 +60,7 @@ function getRequestTokenQueryString(method="GET", apiCreds, requestURL, oauth_ca
 	return (requestQueryString + "oauth_signature=" + encodeURIComponent(oauthSignature));
 }
 
+// Generic function for oAuth Request URLs
  async function requestToken(url) {
 	return new Promise((resolve, reject) => {
 		https.get(url,
@@ -87,6 +88,8 @@ function getRequestTokenQueryString(method="GET", apiCreds, requestURL, oauth_ca
 				process.stdout.write(`\nrequestToken(${url}) API response error\n`);
 				console.error(e);
 			});
+	}).catch(reason => {
+		console.log(`\n\nRequest for Token Promise Error requestToken(${url})\n\n`);
 	});
 }
 
@@ -104,6 +107,6 @@ function getResponseKeyValues(response) {
 	return responseTokens;
 }
 
-exports.getRequestTokenQueryString = getRequestTokenQueryString;
+exports.getSignedRequestTokenQueryString = getSignedRequestTokenQueryString;
 exports.requestToken = requestToken;
 exports.getResponseKeyValues = getResponseKeyValues;
