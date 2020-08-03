@@ -207,17 +207,17 @@ async function processPhotos(flickrPhotos, albumId) {
 				flickrPhoto.title,
 				flickrPhoto.description._content,
 				flickrPhoto.url_sq,
-				flickrPhoto.height_sq,
 				flickrPhoto.width_sq,
+				flickrPhoto.height_sq,
 				flickrPhoto.url_s,
-				flickrPhoto.height_s,
 				flickrPhoto.width_s,
+				flickrPhoto.height_s,
 				flickrPhoto.url_m,
-				flickrPhoto.height_m,
 				flickrPhoto.width_m,
+				flickrPhoto.height_m,
 				flickrPhoto.url_o,
-				flickrPhoto.height_o,
 				flickrPhoto.width_o,
+				flickrPhoto.height_o,
 				flickrPhoto.datetaken]);
 
 			flickrPhotosById[flickrPhoto.id] = {
@@ -288,20 +288,20 @@ async function processPhotos(flickrPhotos, albumId) {
 																flickrPhotosById[id].title,
 																flickrPhotosById[id].description._content,
 																flickrPhotosById[id].url_sq,
-																flickrPhotosById[id].height_sq,
 																flickrPhotosById[id].width_sq,
+																flickrPhotosById[id].height_sq,
 																flickrPhotosById[id].url_s,
-																flickrPhotosById[id].height_s,
 																flickrPhotosById[id].width_s,
+																flickrPhotosById[id].height_s,
 																flickrPhotosById[id].url_m,
-																flickrPhotosById[id].height_m,
 																flickrPhotosById[id].width_m,
+																flickrPhotosById[id].height_m,
 																flickrPhotosById[id].url_o,
-																flickrPhotosById[id].height_o,
-																flickrPhotosById[id].width_o
+																flickrPhotosById[id].width_o,
+																flickrPhotosById[id].height_o
 															);
 
-							process.stdout.write("Row Found: " + (photoUpdatedStatus.affectedRows ? true : false));
+							process.stdout.write("\nRow Found: " + (photoUpdatedStatus.affectedRows ? true : false));
 							process.stdout.write("\nRow Updated: " + (photoUpdatedStatus.changedRows ? true : false) + "\n\n");
 						}
 				}
